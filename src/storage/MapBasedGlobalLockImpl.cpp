@@ -7,7 +7,7 @@ namespace Backend {
 
 // See MapBasedGlobalLockImpl.h
 bool MapBasedGlobalLockImpl::Put(const std::string &key, const std::string &value) {
-	// std::unique_lock<std::mutex> guard(_lock);
+	std::unique_lock<std::mutex> guard(_lock);
 	if(_backend.find(key) == _backend.end()) {
 		if(count > _max_size - 1) {
 			std::string key_tmp = _timestamps.rbegin()->second;
@@ -37,7 +37,7 @@ bool MapBasedGlobalLockImpl::Put(const std::string &key, const std::string &valu
 
 // See MapBasedGlobalLockImpl.h
 bool MapBasedGlobalLockImpl::PutIfAbsent(const std::string &key, const std::string &value) {
-	// std::unique_lock<std::mutex> guard(_lock);
+	std::unique_lock<std::mutex> guard(_lock);
 	if(_backend.find(key) == _backend.end()) {
 		if(count > _max_size - 1) {
 			std::string key_tmp = _timestamps.rbegin()->second;
@@ -59,7 +59,7 @@ bool MapBasedGlobalLockImpl::PutIfAbsent(const std::string &key, const std::stri
 
 // See MapBasedGlobalLockImpl.h
 bool MapBasedGlobalLockImpl::Set(const std::string &key, const std::string &value) {
-	// std::unique_lock<std::mutex> guard(_lock);
+	std::unique_lock<std::mutex> guard(_lock);
 	if(_backend.find(key) != _backend.end()) {
 		_backend.at(key) = value;
 		size_t stamp = _inv_timestamps.at(key);
@@ -74,7 +74,7 @@ bool MapBasedGlobalLockImpl::Set(const std::string &key, const std::string &valu
 
 // See MapBasedGlobalLockImpl.h
 bool MapBasedGlobalLockImpl::Delete(const std::string &key) { 
-	// std::unique_lock<std::mutex> guard(_lock);
+	std::unique_lock<std::mutex> guard(_lock);
 	auto it = _backend.find(key);
 	if(it != _backend.end()) {
 		_backend.erase(it);
@@ -89,7 +89,7 @@ bool MapBasedGlobalLockImpl::Delete(const std::string &key) {
 
 // See MapBasedGlobalLockImpl.h
 bool MapBasedGlobalLockImpl::Get(const std::string &key, std::string &value) const {
-	// std::unique_lock<std::mutex> guard(*const_cast<std::mutex *>(&_lock));
+	std::unique_lock<std::mutex> guard(*const_cast<std::mutex *>(&_lock));
 	if(_backend.find(key) != _backend.end()) {
 		value = _backend.at(key);
 		return true;
