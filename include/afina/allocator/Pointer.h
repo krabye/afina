@@ -8,7 +8,11 @@ namespace Allocator {
 class Simple;
 
 class Pointer {
+private:
+	void *inner_ptr;
 public:
+
+	friend Simple;
     Pointer();
 
     Pointer(const Pointer &);
@@ -17,7 +21,7 @@ public:
     Pointer &operator=(const Pointer &);
     Pointer &operator=(Pointer &&);
 
-    void *get() const { return 0; }
+    void *get() const;
 };
 
 } // namespace Allocator
