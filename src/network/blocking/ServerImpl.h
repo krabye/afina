@@ -4,6 +4,8 @@
 #include <atomic>
 #include <vector>
 
+#include <pthread.h>
+
 #include <afina/network/Server.h>
 
 namespace Afina {
