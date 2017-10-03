@@ -93,6 +93,11 @@ target_link_libraries(uv pthread)
 ## Stack traces
 add_subdirectory(third-party/backward-cpp)
 
+## Command line arguments parsing
+set(CXXOPTS_BUILD_TESTS OFF CACHE BOOL "Set to ON to build examples")
+set(CXXOPTS_BUILD_EXAMPLES OFF CACHE BOOL "Set to ON to build examples")
+add_subdirectory(third-party/cxxopts-1.4.3)
+
 ##############################################################################
 # Setup build system
 ##############################################################################
