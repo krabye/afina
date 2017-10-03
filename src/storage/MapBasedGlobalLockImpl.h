@@ -4,6 +4,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <deque>
 
 #include <afina/Storage.h>
 
@@ -40,7 +41,14 @@ private:
 
     size_t _max_size;
 
+    size_t time = 0;
+
+    size_t count = 0;
+
     std::map<std::string, std::string> _backend;
+
+    std::map<size_t, std::string> _timestamps;
+    std::map<std::string, size_t> _inv_timestamps;
 };
 
 } // namespace Backend
