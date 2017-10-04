@@ -1,6 +1,7 @@
 #include <afina/allocator/Simple.h>
 #include <afina/allocator/Error.h>
 #include <afina/allocator/Pointer.h>
+#include <string.h>
 
 namespace Afina {
 namespace Allocator {
