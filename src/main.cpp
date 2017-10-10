@@ -2,6 +2,8 @@
 #include <iostream>
 #include <memory>
 #include <uv.h>
+#include <unistd.h>
+#include <fstream>
 
 #include <cxxopts.hpp>
 
@@ -48,6 +50,8 @@ int main(int argc, char **argv) {
         // and simplify validation below
         options.add_options()("s,storage", "Type of storage service to use", cxxopts::value<std::string>());
         options.add_options()("n,network", "Type of network service to use", cxxopts::value<std::string>());
+        options.add_options()("d,demon", "Demon mode");
+        options.add_options()("p,print-pid", "Print pid to file", cxxopts::value<std::string>());
         options.add_options()("h,help", "Print usage info");
         options.parse(argc, argv);
 
@@ -58,6 +62,29 @@ int main(int argc, char **argv) {
     } catch (cxxopts::OptionParseException &ex) {
         std::cerr << "Error: " << ex.what() << std::endl;
         return 1;
+    }
+
+    pid_t p = getpid();
+    if (options.count("demon") > 0) {
+        if ( (p = fork()) == 0 ) {
+            p = setsid();
+            fclose(stderr);
+            fclose(stdout);
+            fclose(stdin);
+        } else if (p != -1) {
+            return 0;
+        } else {
+            printf("Can not fork\n");
+            return 1;
+        }
+    }    
+
+    std::string pid_file = "afina.pid";
+    if (options.count("print-pid") > 0) {
+        pid_file = options["print-pid"].as<std::string>();
+        std::ofstream fout(pid_file);
+        fout << p << "\n";
+        fout.close();
     }
 
     // Start boot sequence
