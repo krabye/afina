@@ -201,10 +201,6 @@ void ServerImpl::RunAcceptor() {
 	                throw std::runtime_error("Could not create client thread");
 	            }
                 con_mutex.unlock();
-
-	            // if (pthread_detach(cl_connection) < 0) {
-	            //     throw std::runtime_error("Could not detach client thread");
-	            // }
 	        }
 	        
 	    }
@@ -249,7 +245,6 @@ void ServerImpl::RunConnection(int client_socket) {
     size_t parsed;
     bool state = false;
     Protocol::Parser parser;
-    // Execute::Command cmd;
     uint32_t body_size;
     std::string args;
     std::string out;
@@ -272,7 +267,6 @@ void ServerImpl::RunConnection(int client_socket) {
                 //we have extra bytes in our buffer after reading and parsing
                 if (res - parsed > 0 && body_size > 0) {
                     args = std::string(buf+parsed, res-parsed);
-                    // std::cout << args << "\n";
                     body_size = (body_size > res - parsed) ? (body_size + parsed - res) : 0;
                 }
                 while (body_size > 0) {
