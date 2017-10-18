@@ -267,7 +267,7 @@ void ServerImpl::RunConnection(int client_socket) {
             }
             if (state) {
                 auto cmd = parser.Build(body_size);
-                //we have extra bytes in our buffer after reading and parsing
+
                 if (res - parsed > 0 && body_size > 0) {
                     args = std::string(buf+parsed, res-parsed);
                     body_size = (body_size > res - parsed) ? (body_size + parsed - res) : 0;
@@ -291,8 +291,7 @@ void ServerImpl::RunConnection(int client_socket) {
             }
         }
     } catch (...) {
-        close(client_socket);
-        return;
+        std::cerr << "Thread failed\n";
     }
     close(client_socket);
 }
