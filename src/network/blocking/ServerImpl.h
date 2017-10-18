@@ -8,8 +8,6 @@
 
 #include <afina/network/Server.h>
 
-// #include "../../protocol/Parser.h"
-
 namespace Afina {
 namespace Network {
 namespace Blocking {
