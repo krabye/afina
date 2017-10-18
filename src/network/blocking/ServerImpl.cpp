@@ -181,28 +181,31 @@ void ServerImpl::RunAcceptor() {
 
 	        con_mutex.lock();
 	        if (connections.size() >= max_workers) {
-	            con_mutex.unlock();
 	            std::cerr << "not enough workers\n";
 	            close(client_socket);
 	        } else {
-	            pthread_t cl_connection;
-	            pthread_attr_t attr;
-                if (pthread_attr_init(&attr) < 0) {
-                    throw std::runtime_error("Could not set init attribute");
+                try {
+    	            pthread_t cl_connection;
+    	            pthread_attr_t attr;
+                    if (pthread_attr_init(&attr) < 0) {
+                        throw std::runtime_error("Could not set init attribute");
+                    }
+    	            if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) < 0) {
+    	            	throw std::runtime_error("Could not set detache attribute");
+    	            }
+    	            
+    	            connections.push_back(cl_connection);
+    	            Data data = {this, client_socket};
+    	            if (pthread_create(&connections.back(), &attr, ServerImpl::RunConnectionProxy, &data) < 0) {
+    	                throw std::runtime_error("Could not create client thread");
+    	            }
+                    
+                } catch (std::runtime_error &ex) {
+                    std::cerr << "New thread fails: " << ex.what() << std::endl;
                 }
-	            if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) < 0) {
-	            	throw std::runtime_error("Could not set detache attribute");
-	            }
-	            
-	            connections.push_back(cl_connection);
-	            Data data = {this, client_socket};
-	            if (pthread_create(&connections.back(), &attr, ServerImpl::RunConnectionProxy, &data) < 0) {
-                    con_mutex.unlock();
-	                throw std::runtime_error("Could not create client thread");
-	            }
-                con_mutex.unlock();
 	        }
-	        
+
+            con_mutex.unlock();
 	    }
 	} catch (std::runtime_error &ex) {
 		std::cerr << "Server fails: " << ex.what() << std::endl;
