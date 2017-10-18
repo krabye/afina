@@ -187,6 +187,9 @@ void ServerImpl::RunAcceptor() {
 	        } else {
 	            pthread_t cl_connection;
 	            pthread_attr_t attr;
+                if (pthread_attr_init(&attr) < 0) {
+                    throw std::runtime_error("Could not set init attribute");
+                }
 	            if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) < 0) {
 	            	throw std::runtime_error("Could not set detache attribute");
 	            }
@@ -226,9 +229,7 @@ void ServerImpl::RunAcceptor() {
 void *ServerImpl::RunConnectionProxy(void *p){
     Data *data = reinterpret_cast<Data *>(p);
     data->serv->RunConnection(data->socket);
-    std::cout << "here\n";
     data->serv->con_mutex.lock();
-    std::cout << "after\n";
     for (std::vector<pthread_t>::iterator it = data->serv->connections.begin();
             it != data->serv->connections.end(); ++it) {
         if (*it == pthread_self()) {
