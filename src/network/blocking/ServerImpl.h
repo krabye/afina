@@ -70,6 +70,8 @@ private:
     std::vector<pthread_t> connections;
 
     std::mutex con_mutex;
+
+    int server_socket;
 };
 
 struct Data {

@@ -97,24 +97,29 @@ int main(int argc, char **argv) {
         storage_type = options["storage"].as<std::string>();
     }
 
-    if (storage_type == "map_global") {
-        app.storage = std::make_shared<Afina::Backend::MapBasedGlobalLockImpl>();
-    } else {
-        throw std::runtime_error("Unknown storage type");
-    }
-
-    // Build  & start network layer
-    std::string network_type = "uv";
-    if (options.count("network") > 0) {
-        network_type = options["network"].as<std::string>();
-    }
-
-    if (network_type == "uv") {
-        app.server = std::make_shared<Afina::Network::UV::ServerImpl>(app.storage);
-    } else if (network_type == "blocking") {
-        app.server = std::make_shared<Afina::Network::Blocking::ServerImpl>(app.storage);
-    } else {
-        throw std::runtime_error("Unknown network type");
+    try {
+        if (storage_type == "map_global") {
+            app.storage = std::make_shared<Afina::Backend::MapBasedGlobalLockImpl>();
+        } else {
+            throw std::runtime_error("Unknown storage type");
+        }
+    
+        // Build  & start network layer
+        std::string network_type = "uv";
+        if (options.count("network") > 0) {
+            network_type = options["network"].as<std::string>();
+        }
+    
+        if (network_type == "uv") {
+            app.server = std::make_shared<Afina::Network::UV::ServerImpl>(app.storage);
+        } else if (network_type == "blocking") {
+            app.server = std::make_shared<Afina::Network::Blocking::ServerImpl>(app.storage);
+        } else {
+            throw std::runtime_error("Unknown network type");
+        }
+    } catch (std::runtime_error &ex) {
+        std::cerr << "Server fails: " << ex.what() << std::endl;
+        return 1;
     }
 
     // Init local loop. It will react to signals and performs some metrics collections. Each
