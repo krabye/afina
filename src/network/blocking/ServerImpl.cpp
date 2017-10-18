@@ -16,8 +16,11 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <afina/Storage.h>
+#include <afina/execute/Command.h>
+#include <protocol/Parser.h>
 
 namespace Afina {
 namespace Network {
@@ -170,24 +173,113 @@ void ServerImpl::RunAcceptor() {
             throw std::runtime_error("Socket accept() failed");
         }
 
-        // TODO: Start new thread and process data from/to connection
-        {
-            std::string msg = "TODO: start new thread and process memcached protocol instead";
-            if (send(client_socket, msg.data(), msg.size(), 0) <= 0) {
-                close(client_socket);
-                close(server_socket);
-                throw std::runtime_error("Socket send() failed");
-            }
+        con_mutex.lock();
+        if (connections.size() >= max_workers) {
+            con_mutex.unlock();
+            std::cerr << "not enough workers\n";
             close(client_socket);
+        } else {
+            con_mutex.unlock();
+            pthread_t cl_connection;
+            if (pthread_detach(cl_connection) < 0) {
+                throw std::runtime_error("Could not detach client thread");
+            }
+            connections.push_back(cl_connection);
+            Data data = {this, client_socket};
+            if (pthread_create(&connections.back(), NULL, ServerImpl::RunConnectionProxy, &data) < 0) {
+                throw std::runtime_error("Could not create client thread");
+            }
         }
+        
+    }
+
+    //Waiting until all threads stop working
+    while (true) {
+        con_mutex.lock();
+        if (connections.size() == 0) {
+            con_mutex.unlock();
+            break;
+        }    
+        con_mutex.unlock();
     }
 
     // Cleanup on exit...
     close(server_socket);
 }
 
+void *ServerImpl::RunConnectionProxy(void *p){
+    Data *data = reinterpret_cast<Data *>(p);
+    data->serv->RunConnection(data->socket);
+    data->serv->con_mutex.lock();
+    for (std::vector<pthread_t>::iterator it = data->serv->connections.begin();
+            it != data->serv->connections.end(); ++it) {
+        if (*it == pthread_self()) {
+            data->serv->connections.erase(it);
+            break;
+        }
+    }
+    data->serv->con_mutex.unlock();
+    return 0;
+}
+
 // See Server.h
-void ServerImpl::RunConnection() { std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl; }
+void ServerImpl::RunConnection(int client_socket) {
+    std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
+    char buf[100];
+    ssize_t res;
+    size_t parsed;
+    bool state = false;
+    Protocol::Parser parser;
+    // Execute::Command cmd;
+    uint32_t body_size;
+    std::string args;
+    std::string out;
+
+    try {
+        while (running.load() || !state) {
+            if ( (res = recv(client_socket,  buf, 100, 0)) <= 0 ) {
+                throw std::runtime_error("Socket error");
+            }
+
+            try {
+                state = parser.Parse(buf, res, parsed);
+            } catch (std::runtime_error &ex) {
+                std::cerr << "Server fails: " << ex.what() << std::endl;
+                parser.Reset();
+                state = false;
+            }
+            if (state) {
+                auto cmd = parser.Build(body_size);
+                //we have extra bytes in our buffer after reading and parsing
+                if (res - parsed > 0 && body_size > 0) {
+                    args = std::string(buf+parsed, res-parsed);
+                    // std::cout << args << "\n";
+                    body_size = (body_size > res - parsed) ? (body_size + parsed - res) : 0;
+                }
+                while (body_size > 0) {
+                    if ( (res = recv(client_socket, buf, body_size, 0)) <= 0 ){
+                        throw std::runtime_error("Socket error");
+                    }
+                    args.append(buf, res);
+                    body_size -= res;
+                }
+
+                cmd->Execute(*pStorage, args, out);
+
+                if ( (res = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
+                    throw std::runtime_error("Socket error");
+                }
+                
+                parser.Reset();
+                state = false;
+            }
+        }
+    } catch (...) {
+        close(client_socket);
+        return;
+    }
+    close(client_socket);
+}
 
 } // namespace Blocking
 } // namespace Network
