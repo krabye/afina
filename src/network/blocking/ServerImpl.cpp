@@ -53,7 +53,7 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
     sigemptyset(&sig_mask);
     sigaddset(&sig_mask, SIGPIPE);
     try {
-    	if (pthread_sigmask(SIG_BLOCK, &sig_mask, NULL) != 0) {
+        if (pthread_sigmask(SIG_BLOCK, &sig_mask, NULL) != 0) {
             throw std::runtime_error("Unable to mask SIGPIPE");
         }
     
@@ -90,8 +90,8 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
             throw std::runtime_error("Could not create server thread");
         } 
     } catch (std::runtime_error &ex) {
-		std::cerr << "Server fails: " << ex.what() << std::endl;
-	}
+        std::cerr << "Server fails: " << ex.what() << std::endl;
+    }
 }
 
 // See Server.h
@@ -128,88 +128,88 @@ void ServerImpl::RunAcceptor() {
     server_addr.sin_addr.s_addr = INADDR_ANY;  // Bind to any address
 
     try {
-	    // Arguments are:
-	    // - Family: IPv4
-	    // - Type: Full-duplex stream (reliable)
-	    // - Protocol: TCP
-	    server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	    if (server_socket == -1) {
-	        throw std::runtime_error("Failed to open socket");
-	    }
+        // Arguments are:
+        // - Family: IPv4
+        // - Type: Full-duplex stream (reliable)
+        // - Protocol: TCP
+        server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (server_socket == -1) {
+            throw std::runtime_error("Failed to open socket");
+        }
 
-	    // when the server closes the socket,the connection must stay in the TIME_WAIT state to
-	    // make sure the client received the acknowledgement that the connection has been terminated.
-	    // During this time, this port is unavailable to other processes, unless we specify this option
-	    //
-	    // This option let kernel knows that we are OK that multiple threads/processes are listen on the
-	    // same port. In a such case kernel will balance input traffic between all listeners (except those who
-	    // are closed already)
-	    int opts = 1;
-	    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opts, sizeof(opts)) == -1) {
-	        close(server_socket);
-	        throw std::runtime_error("Socket setsockopt() failed");
-	    }
+        // when the server closes the socket,the connection must stay in the TIME_WAIT state to
+        // make sure the client received the acknowledgement that the connection has been terminated.
+        // During this time, this port is unavailable to other processes, unless we specify this option
+        //
+        // This option let kernel knows that we are OK that multiple threads/processes are listen on the
+        // same port. In a such case kernel will balance input traffic between all listeners (except those who
+        // are closed already)
+        int opts = 1;
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opts, sizeof(opts)) == -1) {
+            close(server_socket);
+            throw std::runtime_error("Socket setsockopt() failed");
+        }
 
-	    // Bind the socket to the address. In other words let kernel know data for what address we'd
-	    // like to see in the socket
-	    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-	        close(server_socket);
-	        throw std::runtime_error("Socket bind() failed");
-	    }
+        // Bind the socket to the address. In other words let kernel know data for what address we'd
+        // like to see in the socket
+        if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+            close(server_socket);
+            throw std::runtime_error("Socket bind() failed");
+        }
 
-	    // Start listening. The second parameter is the "backlog", or the maximum number of
-	    // connections that we'll allow to queue up. Note that listen() doesn't block until
-	    // incoming connections arrive. It just makesthe OS aware that this process is willing
-	    // to accept connections on this socket (which is bound to a specific IP and port)
-	    if (listen(server_socket, 5) == -1) {
-	        close(server_socket);
-	        throw std::runtime_error("Socket listen() failed");
-	    }
+        // Start listening. The second parameter is the "backlog", or the maximum number of
+        // connections that we'll allow to queue up. Note that listen() doesn't block until
+        // incoming connections arrive. It just makesthe OS aware that this process is willing
+        // to accept connections on this socket (which is bound to a specific IP and port)
+        if (listen(server_socket, 5) == -1) {
+            close(server_socket);
+            throw std::runtime_error("Socket listen() failed");
+        }
 
-	    int client_socket;
-	    struct sockaddr_in client_addr;
-	    socklen_t sinSize = sizeof(struct sockaddr_in);
-	    while (running.load()) {
-	        std::cout << "network debug: waiting for connection..." << std::endl;
+        int client_socket;
+        struct sockaddr_in client_addr;
+        socklen_t sinSize = sizeof(struct sockaddr_in);
+        while (running.load()) {
+            std::cout << "network debug: waiting for connection..." << std::endl;
 
-	        // When an incoming connection arrives, accept it. The call to accept() blocks until
-	        // the incoming connection arrives
-	        if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &sinSize)) == -1) {
-	            close(server_socket);
-	            throw std::runtime_error("Socket accept() failed");
-	        }
+            // When an incoming connection arrives, accept it. The call to accept() blocks until
+            // the incoming connection arrives
+            if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &sinSize)) == -1) {
+                close(server_socket);
+                throw std::runtime_error("Socket accept() failed");
+            }
 
-	        con_mutex.lock();
-	        if (connections.size() >= max_workers) {
-	            std::cerr << "not enough workers\n";
-	            close(client_socket);
-	        } else {
+            con_mutex.lock();
+            if (connections.size() >= max_workers) {
+                std::cerr << "not enough workers\n";
+                close(client_socket);
+            } else {
                 try {
-    	            pthread_t cl_connection;
-    	            pthread_attr_t attr;
+                    pthread_t cl_connection;
+                    pthread_attr_t attr;
                     if (pthread_attr_init(&attr) < 0) {
                         throw std::runtime_error("Could not set init attribute");
                     }
-    	            if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) < 0) {
-    	            	throw std::runtime_error("Could not set detache attribute");
-    	            }
-    	            
-    	            connections.push_back(cl_connection);
-    	            Data data = {this, client_socket};
-    	            if (pthread_create(&connections.back(), &attr, ServerImpl::RunConnectionProxy, &data) < 0) {
-    	                throw std::runtime_error("Could not create client thread");
-    	            }
+                    if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) < 0) {
+                        throw std::runtime_error("Could not set detache attribute");
+                    }
+                    
+                    connections.push_back(cl_connection);
+                    Data data = {this, client_socket};
+                    if (pthread_create(&connections.back(), &attr, ServerImpl::RunConnectionProxy, &data) < 0) {
+                        throw std::runtime_error("Could not create client thread");
+                    }
                     
                 } catch (std::runtime_error &ex) {
                     std::cerr << "New thread fails: " << ex.what() << std::endl;
                 }
-	        }
+            }
 
             con_mutex.unlock();
-	    }
-	} catch (std::runtime_error &ex) {
-		std::cerr << "Server fails: " << ex.what() << std::endl;
-	}
+        }
+    } catch (std::runtime_error &ex) {
+        std::cerr << "Server fails: " << ex.what() << std::endl;
+    }
 
     //Waiting until all threads stop working
     while (true) {
@@ -245,7 +245,7 @@ void ServerImpl::RunConnection(int client_socket) {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
     char buf[100];
     ssize_t res;
-    size_t parsed;
+    size_t parsed = 0;
     bool state = false;
     Protocol::Parser parser;
     uint32_t body_size;
@@ -254,8 +254,10 @@ void ServerImpl::RunConnection(int client_socket) {
 
     try {
         while (running.load() || !state) {
-            if ( (res = recv(client_socket,  buf, 100, 0)) <= 0 ) {
+            if ( (res = recv(client_socket,  buf, 100, 0)) < 0 ) {
                 throw std::runtime_error("Socket error");
+            } else if (res == 0) {
+                throw std::runtime_error("Socket closed by client");
             }
 
             try {
@@ -273,8 +275,10 @@ void ServerImpl::RunConnection(int client_socket) {
                     body_size = (body_size > res - parsed) ? (body_size + parsed - res) : 0;
                 }
                 while (body_size > 0) {
-                    if ( (res = recv(client_socket, buf, body_size, 0)) <= 0 ){
+                    if ( (res = recv(client_socket, buf, body_size, 0)) < 0 ){
                         throw std::runtime_error("Socket error");
+                    } else if (res == 0) {
+                        throw std::runtime_error("Socket closed by client");
                     }
                     args.append(buf, res);
                     body_size -= res;
@@ -287,11 +291,14 @@ void ServerImpl::RunConnection(int client_socket) {
                 }
                 
                 parser.Reset();
+                parsed = 0;
                 state = false;
             }
         }
+    } catch (std::runtime_error &ex) {
+        std::cerr << "Thread finished: " << ex.what() << std::endl;
     } catch (...) {
-        std::cerr << "Thread failed\n";
+        std::cerr << "Thread failed: Another error\n";
     }
     close(client_socket);
 }
