@@ -223,6 +223,12 @@ void ServerImpl::RunAcceptor() {
 
     // Cleanup on exit...
     close(server_socket);
+
+    // Wait until for all connections to be complete
+    std::unique_lock<std::mutex> __lock(connections_mutex);
+    while (!connections.empty()) {
+        connections_cv.wait(__lock);
+    }
 }
 
 void *ServerImpl::RunConnectionProxy(void *p){
