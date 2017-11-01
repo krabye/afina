@@ -10,7 +10,7 @@ namespace Execute {
 void Set::Execute(Storage &storage, const std::string &args, std::string &out) {
     std::cout << "Set(" << _key << "): " << args << std::endl;
     storage.Put(_key, args);
-    out = "STORED";
+    out = "STORED\r\n";
 }
 
 } // namespace Execute

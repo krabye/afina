@@ -4,6 +4,11 @@
 #include <uv.h>
 #include <unistd.h>
 #include <fstream>
+#include <sys/epoll.h>
+#include <sys/signalfd.h>
+#include <time.h>
+#include <signal.h>
+#include <sys/timerfd.h>
 
 #include <cxxopts.hpp>
 
@@ -15,6 +20,8 @@
 #include "network/nonblocking/ServerImpl.h"
 #include "network/uv/ServerImpl.h"
 #include "storage/MapBasedGlobalLockImpl.h"
+
+#define MAXEVENTS 8
 
 typedef struct {
     std::shared_ptr<Afina::Storage> storage;
@@ -32,7 +39,61 @@ void signal_handler(uv_signal_t *handle, int signum) {
 // Called when it is time to collect passive metrics from services
 void timer_handler(uv_timer_t *handle) {
     Application *pApp = static_cast<Application *>(handle->data);
-    std::cout << "Start passive metrics collection" << std::endl;
+    // std::cout << "Start passive metrics collection" << std::endl;
+}
+
+void run_loop(int efd, int signal_fd, int timer_fd) {
+    struct epoll_event *events;
+    struct epoll_event event;
+    events = (epoll_event*)calloc(MAXEVENTS, sizeof event);
+    bool running = true;
+    unsigned long long tmp;
+    ssize_t res;
+    while(running) {
+        int n, i;
+
+        n = epoll_wait(efd, events, MAXEVENTS, -1);
+        for (i = 0; i < n; i++) {
+            if (events[i].data.fd == signal_fd) {
+                running = false;
+                std::cout << "Receive stop signal" << std::endl;
+                break;
+            }
+            if (events[i].data.fd == timer_fd) {
+                while (1) {
+                    res = read(timer_fd, &tmp, sizeof tmp);
+                    if (res == -1) {
+                        std::cout << "Start passive metrics collection" << std::endl;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+int makeTimer(int t)
+{
+    struct itimerspec timeout;
+    int timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+    if (timer_fd <= 0) {
+        throw std::runtime_error("Failed to create timer\n");
+    }
+
+    if (fcntl(timer_fd, F_SETFL, O_NONBLOCK)) {
+        throw std::runtime_error("Failed to set to non blocking mode\n");
+    }
+
+    timeout.it_value.tv_sec = t;
+    timeout.it_value.tv_nsec = 0;
+    timeout.it_interval.tv_sec = t; /* recurring */
+    timeout.it_interval.tv_nsec = 0;
+
+    if (timerfd_settime(timer_fd, 0, &timeout, NULL)) {
+        throw std::runtime_error("Failed to set timer duration\n");
+    }
+
+    return timer_fd;
 }
 
 int main(int argc, char **argv) {
@@ -115,6 +176,8 @@ int main(int argc, char **argv) {
             app.server = std::make_shared<Afina::Network::UV::ServerImpl>(app.storage);
         } else if (network_type == "blocking") {
             app.server = std::make_shared<Afina::Network::Blocking::ServerImpl>(app.storage);
+        } else if (network_type == "nonblocking") {
+            app.server = std::make_shared<Afina::Network::NonBlocking::ServerImpl>(app.storage);
         } else {
             throw std::runtime_error("Unknown network type");
         }
@@ -126,18 +189,30 @@ int main(int argc, char **argv) {
     // Init local loop. It will react to signals and performs some metrics collections. Each
     // subsystem is able to push metrics actively, but some metrics could be collected only
     // by polling, so loop here will does that work
-    uv_loop_t loop;
-    uv_loop_init(&loop);
+    int efd;
+    efd = epoll_create1(0);
+    sigset_t mask;
+    sigset_t orig_mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGKILL);
+    int signal_fd, timer_fd;
+    if (sigprocmask(SIG_BLOCK, &mask, &orig_mask) < 0) {
+        perror ("sigprocmask");
+        return 1;
+    }
+    signal_fd = signalfd(-1, &mask, 0);
 
-    uv_signal_t sig;
-    uv_signal_init(&loop, &sig);
-    uv_signal_start(&sig, signal_handler, SIGTERM | SIGKILL);
-    sig.data = &app;
+    epoll_event event;
+    event.data.fd = signal_fd;
+    event.events = EPOLLIN;
+    epoll_ctl(efd, EPOLL_CTL_ADD, signal_fd, &event);
 
-    uv_timer_t timer;
-    uv_timer_init(&loop, &timer);
-    timer.data = &app;
-    uv_timer_start(&timer, timer_handler, 0, 5000);
+    timer_fd = makeTimer(5);
+
+    event.data.fd = timer_fd;
+    event.events = EPOLLIN;
+    epoll_ctl(efd, EPOLL_CTL_ADD, timer_fd, &event);
 
     // Start services
     try {
@@ -146,7 +221,8 @@ int main(int argc, char **argv) {
 
         // Freeze current thread and process events
         std::cout << "Application started" << std::endl;
-        uv_run(&loop, UV_RUN_DEFAULT);
+        // uv_run(&loop, UV_RUN_DEFAULT);
+        run_loop(efd, signal_fd, timer_fd);
 
         // Stop services
         app.server->Stop();

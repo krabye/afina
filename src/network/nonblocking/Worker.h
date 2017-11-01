@@ -3,6 +3,9 @@
 
 #include <memory>
 #include <pthread.h>
+#include <map>
+#include <protocol/Parser.h>
+#include <afina/execute/Command.h>
 
 namespace Afina {
 
@@ -11,6 +14,15 @@ class Storage;
 
 namespace Network {
 namespace NonBlocking {
+
+struct State
+{
+    Protocol::Parser parser;
+    uint32_t body_size;
+    std::string args;
+    bool state;
+    State():parser(Protocol::Parser()), body_size(0), args(""), state(false) {}
+};
 
 /**
  * # Thread running epoll
@@ -47,10 +59,15 @@ protected:
     /**
      * Method executing by background thread
      */
-    void OnRun(void *args);
+    static void* OnRun(void *args);
+    void Run();
 
 private:
     pthread_t thread;
+    int server_socket;
+    bool running;
+    std::map<int, State> States;
+    std::shared_ptr<Afina::Storage> pStorage;
 };
 
 } // namespace NonBlocking

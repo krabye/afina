@@ -14,9 +14,9 @@ void Replace::Execute(Storage &storage, const std::string &args, std::string &ou
     std::string value;
     if (storage.Get(_key, value)) {
         storage.Set(_key, args);
-        out = "STORED";
+        out = "STORED\r\n";
     } else {
-        out = "NOT_STORED";
+        out = "NOT_STORED\r\n";
     }
 }
 

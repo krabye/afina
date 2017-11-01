@@ -10,7 +10,7 @@ namespace Execute {
 // hold data for this key".
 void Add::Execute(Storage &storage, const std::string &args, std::string &out) {
     std::cout << "Add(" << _key << ")" << args << std::endl;
-    out = storage.PutIfAbsent(_key, args) ? "STORED" : "NOT_STORED";
+    out = storage.PutIfAbsent(_key, args) ? "STORED\r\n" : "NOT_STORED\r\n";
 }
 
 } // namespace Execute

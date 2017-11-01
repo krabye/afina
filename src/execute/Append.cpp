@@ -11,11 +11,11 @@ void Append::Execute(Storage &storage, const std::string &args, std::string &out
     std::cout << "Append(" << _key << ")" << args << std::endl;
     std::string value;
     if (!storage.Get(_key, value)) {
-        out.assign("NOT_STORED");
+        out.assign("NOT_STORED\r\n");
         return;
     }
     storage.Put(_key, value + args);
-    out.assign("STORED");
+    out.assign("STORED\r\n");
 }
 
 } // namespace Execute

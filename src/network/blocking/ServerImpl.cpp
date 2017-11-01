@@ -249,12 +249,14 @@ void *ServerImpl::RunConnectionProxy(void *p){
 // See Server.h
 void ServerImpl::RunConnection(int client_socket) {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
-    char buf[100];
-    ssize_t res;
+    char _buf[100];
+    char* begin = _buf;
+    char* buf = _buf;
+    ssize_t res, res1;
     size_t parsed = 0;
     bool state = false;
     Protocol::Parser parser;
-    uint32_t body_size;
+    uint32_t body_size = 0;
     std::string args;
     std::string out;
 
@@ -266,40 +268,89 @@ void ServerImpl::RunConnection(int client_socket) {
                 throw std::runtime_error("Socket closed by client");
             }
 
-            try {
-                state = parser.Parse(buf, res, parsed);
-            } catch (std::runtime_error &ex) {
-                std::cerr << "Server fails: " << ex.what() << std::endl;
-                parser.Reset();
-                state = false;
-            }
-            if (state) {
-                auto cmd = parser.Build(body_size);
-
-                if (res - parsed > 0 && body_size > 0) {
-                    args = std::string(buf+parsed, res-parsed);
-                    body_size = (body_size > res - parsed) ? (body_size + parsed - res) : 0;
-                }
-                while (body_size > 0) {
-                    if ( (res = recv(client_socket, buf, body_size, 0)) < 0 ){
+            while (res > 0) {
+                try {
+                    parsed = 0;
+                    state = parser.Parse(buf, res, parsed);
+                } catch (std::runtime_error &ex) {
+                    std::cerr << "Server fails: " << ex.what() << std::endl;
+                    out = std::string("ERROR\r\n");
+                    if ( (res1 = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
                         throw std::runtime_error("Socket error");
-                    } else if (res == 0) {
-                        throw std::runtime_error("Socket closed by client");
                     }
-                    args.append(buf, res);
-                    body_size -= res;
+                    parser.Reset();
+                    state = false;
+                    buf = begin;
+                    parsed = 0;
+                    break;
                 }
+                buf = buf+parsed;
+                res -= parsed;
+                if (state) {
+                    auto cmd = parser.Build(body_size);
 
-                cmd->Execute(*pStorage, args, out);
+                    if (res > 0 && body_size > 0) {
+                        args = std::string(buf, res > body_size ? body_size : res);
+                        if (body_size > res) {
+                            body_size -= res;
+                            res = 0; //No more data in buf to proces
+                            //Reset buf to begin then
+                            buf = begin;
+                        } else {
+                            buf = buf + body_size;
+                            res -= body_size;
+                            body_size = 0;
 
-                if ( (res = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
-                    throw std::runtime_error("Socket error");
+                            if (buf[0] == '\r' && buf[1] == '\n') {
+                                buf += 2;
+                                res -= 2;
+
+                                if (res == 0)
+                                    buf = begin;
+                            }
+                        }
+                    }
+                    while (body_size > 0) {
+                        if ( (res = recv(client_socket, buf, body_size, 0)) < 0 ){
+                            throw std::runtime_error("Socket error");
+                        } else if (res == 0) {
+                            throw std::runtime_error("Socket closed by client");
+                        }
+                        args.append(buf, res < body_size ? res : body_size);
+                        if (body_size > res) {
+                            body_size -= res;
+                            buf = buf + res;
+                            res = 0; //No more data in buf to proces
+                            //Reset buf to begin then
+                            buf = begin;
+                        } else {
+                            buf = buf + body_size;
+                            res -= body_size;
+                            body_size = 0;
+
+                            if (buf[0] == '\r' && buf[1] == '\n') {
+                                buf += 2;
+                                res -= 2;
+
+                                if (res == 0)
+                                    buf = begin;
+                            }
+                        }
+                    }
+
+                    cmd->Execute(*pStorage, args, out);
+
+                    if ( (res1 = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
+                        throw std::runtime_error("Socket error");
+                    }
+                    
+                    parser.Reset();
+                    parsed = 0;
+                    body_size = 0;
+                    state = false;
                 }
-                
-                parser.Reset();
-                parsed = 0;
-                state = false;
             }
+            
         }
     } catch (std::runtime_error &ex) {
         std::cerr << "Thread finished: " << ex.what() << std::endl;
