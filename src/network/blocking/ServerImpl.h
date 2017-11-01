@@ -74,7 +74,6 @@ private:
 
     // Threads that are processing connection data, permits
     // access only from inside of accept_thread
-<<<<<<< HEAD
     std::vector<pthread_t> connections;
 
     std::mutex con_mutex;
@@ -85,9 +84,6 @@ private:
 struct Data {
     ServerImpl *serv;
     int socket;
-=======
-    std::unordered_set<pthread_t> connections;
->>>>>>> 35bcf612e04612c704c1d0b29852d8c1b7efb2f1
 };
 
 } // namespace Blocking
