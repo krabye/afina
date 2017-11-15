@@ -40,6 +40,7 @@ public:
      * on this thread
      */
     void Start(int server_socket);
+    void Start(int server_socket, int fifo_fd);
 
     /**
      * Signal background thread to stop. After that signal thread must stop to
@@ -68,6 +69,7 @@ private:
     bool running;
     std::map<int, State> States;
     std::shared_ptr<Afina::Storage> pStorage;
+    int fifo_fd;
 };
 
 } // namespace NonBlocking

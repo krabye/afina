@@ -21,6 +21,8 @@ public:
     ServerImpl(std::shared_ptr<Afina::Storage> ps);
     ~ServerImpl();
 
+    void Set_fifo_id(int fifo_id) override;
+
     // See Server.h
     void Start(uint32_t port, uint16_t workers) override;
 
@@ -35,6 +37,7 @@ private:
     // inside of accept_thread
     // Read-only
     uint32_t listen_port;
+    int fifo_id;
 
     // Thread that is accepting new connections
     std::vector<Worker> workers;

@@ -23,6 +23,8 @@ public:
     ServerImpl(std::shared_ptr<Afina::Storage> ps);
     ~ServerImpl();
 
+    void Set_fifo_id(int fifo_id){};
+
     // See Server.h
     void Start(uint32_t port, uint16_t workers) override;
 
