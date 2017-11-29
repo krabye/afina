@@ -5,6 +5,8 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -24,6 +26,7 @@ namespace NonBlocking {
 // See Worker.h
 Worker::Worker(std::shared_ptr<Afina::Storage> ps) {
 	pStorage = ps;
+	fifo_fd = -1;
     // TODO: implementation here
 }
 
@@ -43,6 +46,11 @@ void Worker::Start(int server_socket) {
     // TODO: implementation here
 }
 
+void Worker::Start(int server_socket, int fifo_fd) {
+	this->fifo_fd = fifo_fd;
+	this->Start(server_socket);
+}
+
 // See Worker.h
 void Worker::Stop() {
     running = false;
@@ -59,18 +67,6 @@ void* Worker::OnRun(void *args) {
     Worker* w = ((Worker*)args);
     w->Run();
     // int server_socket = ((Worker*)args)->server_socket;
-
-
-    // TODO: implementation here
-    // 1. Create epoll_context here
-    // 2. Add server_socket to context
-    // 3. Accept new connections, don't forget to call make_socket_nonblocking on
-    //    the client socket descriptor
-    // 4. Add connections to the local context
-    // 5. Process connection events
-    //
-    // Do not forget to use EPOLLEXCLUSIVE flag when register socket
-    // for events to avoid thundering herd type behavior.
 }
 
 void Worker::Run() {
@@ -90,6 +86,15 @@ void Worker::Run() {
     if (s == -1) {
         throw std::runtime_error("epoll_ctl");
     }
+
+    if (fifo_fd != -1) {
+	    event.data.fd = fifo_fd;
+	    event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
+	    s = epoll_ctl(efd, EPOLL_CTL_ADD, fifo_fd, &event);
+	    if (s == -1) {
+	        throw std::runtime_error("epoll_ctl");
+	    }
+	}
 
     events = (epoll_event*)calloc(MAXEVENTS, sizeof event);
 
@@ -218,11 +223,13 @@ void Worker::Run() {
 	                                //Process operations without args here
 	                                if (body_size == 0) {
 		                                cmd->Execute(*pStorage, args, out);
-	                                	if ( (res1 = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
-			                                // perror("Socket error");
-			                                done = 1;
-			                                break;
-			                            }
+		                                if (events[i].data.fd != fifo_fd){
+		                                	if ( (res1 = write(client_socket, &out[0], out.size())) <= 0 ){
+				                                // perror("Socket error");
+				                                done = 1;
+				                                break;
+				                            }
+				                        }
 
 	                                	parser.Reset();
 		                                parsed = 0;
@@ -256,11 +263,13 @@ void Worker::Run() {
                                     }
 
                                     cmd->Execute(*pStorage, args, out);
-                                    if ( (res1 = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
-		                                // perror("Socket error");
-		                                done = 1;
-		                                break;
-		                            }
+                                    if (events[i].data.fd != fifo_fd){
+	                                    if ( (res1 = write(client_socket, &out[0], out.size())) <= 0 ){
+			                                // perror("Socket error");
+			                                done = 1;
+			                                break;
+			                            }
+			                        }
 
                                     parser.Reset();
 	                                parsed = 0;
@@ -274,11 +283,13 @@ void Worker::Run() {
                     } catch (std::runtime_error &ex) {
                         std::cerr << "Server fails: " << ex.what() << std::endl;
                         out = std::string("ERROR\r\n");
-                        if ( (res1 = send(client_socket, &out[0], out.size(), 0)) <= 0 ){
-                            // perror("Socket error");
-                            done = 1;
-                            break;
-                        }
+                        if (events[i].data.fd != fifo_fd){
+	                        if ( (res1 = write(client_socket, &out[0], out.size())) <= 0 ){
+	                            // perror("Socket error");
+	                            done = 1;
+	                            break;
+	                        }
+	                    }
 
                         //This block needed to read remaining data
                         //from client socket

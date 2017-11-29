@@ -29,6 +29,10 @@ ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps) : Server(ps) {}
 // See Server.h
 ServerImpl::~ServerImpl() {}
 
+void ServerImpl::Set_fifo_id(int fifo_id) {
+    this->fifo_id = fifo_id;
+}
+
 // See Server.h
 void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
     std::cout << "network debug: " << __PRETTY_FUNCTION__ << std::endl;
@@ -72,7 +76,10 @@ void ServerImpl::Start(uint32_t port, uint16_t n_workers) {
         throw std::runtime_error("Socket listen() failed");
     }
 
-    for (int i = 0; i < n_workers; i++) {
+    workers.emplace_back(pStorage);
+    workers.back().Start(server_socket, fifo_id);
+
+    for (int i = 1; i < n_workers; i++) {
         workers.emplace_back(pStorage);
         workers.back().Start(server_socket);
     }

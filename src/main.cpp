@@ -9,6 +9,8 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/timerfd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <cxxopts.hpp>
 
@@ -114,6 +116,8 @@ int main(int argc, char **argv) {
         options.add_options()("n,network", "Type of network service to use", cxxopts::value<std::string>());
         options.add_options()("d,demon", "Demon mode");
         options.add_options()("p,print-pid", "Print pid to file", cxxopts::value<std::string>());
+        options.add_options()("r", "Input fifo", cxxopts::value<std::string>());
+        options.add_options()("w", "Output fifo", cxxopts::value<std::string>());
         options.add_options()("h,help", "Print usage info");
         options.parse(argc, argv);
 
@@ -159,6 +163,7 @@ int main(int argc, char **argv) {
         storage_type = options["storage"].as<std::string>();
     }
 
+    int input_fifo = -1;
     try {
         if (storage_type == "map_global") {
             app.storage = std::make_shared<Afina::Backend::MapBasedGlobalLockImpl>();
@@ -180,6 +185,18 @@ int main(int argc, char **argv) {
             app.server = std::make_shared<Afina::Network::NonBlocking::ServerImpl>(app.storage);
         } else {
             throw std::runtime_error("Unknown network type");
+        }
+
+        if (options.count("r") > 0) {
+            std::string input_fifo_name = options["r"].as<std::string>();
+            unlink(input_fifo_name.data());
+            if (mkfifo(input_fifo_name.data(), S_IFIFO | S_IRUSR | S_IWUSR) < 0) {
+                throw std::runtime_error("Input fifo make failed");
+            }
+            if ( (input_fifo = open(input_fifo_name.data(), O_NONBLOCK|O_RDWR)) < 0) {
+                throw std::runtime_error("Input fifo open failed");
+            }
+            app.server->Set_fifo_id(input_fifo);
         }
     } catch (std::runtime_error &ex) {
         std::cerr << "Server fails: " << ex.what() << std::endl;

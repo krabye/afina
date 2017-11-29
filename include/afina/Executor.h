@@ -27,7 +27,11 @@ class Executor {
         kStopped
     };
 
-    Executor(std::string name, int size);
+    Executor(std::string name, int size) {
+        for (int i = 0; i < size; i++) {
+            this->threads.emplace_back(perform, this);
+        }
+    }
     ~Executor();
 
     /**
@@ -36,7 +40,18 @@ class Executor {
      *
      * In case if await flag is true, call won't return until all background jobs are done and all threads are stopped
      */
-    void Stop(bool await = false);
+    void Stop(bool await = false) {
+        this->state = State::kStopping;
+        empty_condition.notify_all();
+        if (await) {
+            for(auto &t: this->threads) {
+                if (t.joinable()) {
+                  t.join();
+                }
+            }
+        }
+        this->state = State::kStopped;
+    }
 
     /**
      * Add function to be executed on the threadpool. Method returns true in case if task has been placed
@@ -70,7 +85,26 @@ private:
     /**
      * Main function that all pool threads are running. It polls internal task queue and execute tasks
      */
-    friend void perform(Executor *executor);
+    friend void perform(Executor *executor) {
+        std::function<void()> task;
+        while (1) {
+            {
+                std::unique_lock<std::mutex> locker(executor->mutex);
+                while (executor->tasks.empty() && executor->state == State::kRun){
+                    cv.wait(lk);
+                }
+
+                //we in stopping/stopped and nothing to perform
+                if (executor->tasks.empty() && executor->state != State::kRun){
+                    return;
+                }
+            
+                task = executor->tasks.front();
+                executor->tasks.pop_front();
+            }
+            task();
+        }
+    }
 
     /**
      * Mutex to protect state below from concurrent modification
