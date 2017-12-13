@@ -24,7 +24,7 @@ namespace Network {
 namespace NonBlocking {
 
 // See Server.h
-ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps) : Server(ps) {}
+ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps) : Server(ps), fifo_id(-1) {}
 
 // See Server.h
 ServerImpl::~ServerImpl() {}
